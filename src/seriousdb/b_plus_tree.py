@@ -24,6 +24,7 @@ class _LeafNode(_Node):
     _next_leaf: _LeafNode | None = None
 
     def __init__(self) -> None:
+        super().__init__()
         self._values = []
 
 
@@ -33,6 +34,7 @@ class _InternalNode(_Node):
     _children: list[_Node]
 
     def __init__(self) -> None:
+        super().__init__()
         self._children = []
 
 
@@ -66,7 +68,7 @@ class bPlusTree:
         self._maxChildren = maxChildren
         self._maxKeys = self._maxChildren - 1
 
-    def put(self, key: int, value) -> bool:
+    def put(self, key: int, value: bytes) -> bool:
         """Put an key value pair into the tree.
 
         if the tree is empty a leafNode is created at root and filled with the first key and value.
@@ -77,8 +79,8 @@ class bPlusTree:
         ----------
             key : int
                 the key to access the value.
-            value : any
-                Value to store.
+            value : bytes
+                bytes (Pages) to store.
 
         Returns
         -------
@@ -95,26 +97,22 @@ class bPlusTree:
             if isinstance(node, _LeafNode):
                 if key in node._keys:
                     key_index = node._keys.index(key)
-                    node._values.insert(key_index, value)
+                    node._values[key_index] = value
                     return False
 
-                node._keys.append(key)
-                node._values.append(value)
+                insert_index: int = self._find_position(node._keys, key)
+
+                node._keys.insert(insert_index, key)
+                node._values.insert(insert_index, value)
+
                 if len(node._keys) > self._maxKeys:
                     self._split(node)
                 return True
 
-            found: bool = False
             if isinstance(node, _InternalNode):
                 internalNode: _InternalNode = node
-                for i in range(0, len(internalNode._keys), 1):
-                    if key < internalNode._keys[i]:
-                        node = internalNode._children[i]
-                        found = True
-                        break
-
-                if found is False:
-                    node = internalNode._children[-1]
+                nodeIndex = self._find_position(internalNode._keys, key)
+                node = internalNode._children[nodeIndex]
 
     def get(key: int) -> bytes | None:
         """Return a value from the given key. if the key does not exist in the tree this function returns None.
@@ -131,42 +129,56 @@ class bPlusTree:
         """
         return
 
+    def delete(key: int) -> bool:
+        """Delete algorithm deletes key value pair."""
+        return True
+
+    """------ INTERNAL FUNCTIONS ------"""
+
     def _createLeaf(self, key: int, value) -> _LeafNode:
         node = _LeafNode()
-        node._values.append(value)
-        node._keys.append(value)
+        node._keys.append(key)
+        key_index = node._keys.index(key)
+        node._values.insert(key_index, value)
         return node
 
-    def _split(self, node: _Node) -> None:
+    def _find_position(self, keys: list[int], key: int) -> int:
+        insert_index: int = 0
 
-        if isinstance(node, _LeafNode):
-            newLeaf: _LeafNode = _LeafNode()
-            keyLen: int = len(node._keys)
-            splitIndex: int = keyLen // 2
+        while insert_index <= len(keys) and keys[insert_index] < key:
+            insert_index += 1
 
-            newLeaf._keys = node._keys[splitIndex:]
-            newLeaf._values = node._values[splitIndex:]
+        return insert_index
 
-            node._keys = node._keys[:splitIndex]
-            node._values = node._values[:splitIndex]
+    def _split_leaf(self, node: _LeafNode) -> None:
+        newLeaf: _LeafNode = _LeafNode()
+        keyLen: int = len(node._keys)
+        splitIndex: int = keyLen // 2
 
-            newLeaf._next_leaf = node._next_leaf
-            node._next_leaf = newLeaf
+        newLeaf._keys = node._keys[splitIndex:]
+        newLeaf._values = node._values[splitIndex:]
 
-            newSeperator: int = newLeaf._keys[0]
+        node._keys = node._keys[:splitIndex]
+        node._values = node._values[:splitIndex]
 
-            if node._parent is not None:
-                parent: _InternalNode = node._parent
+        newLeaf._next_leaf = node._next_leaf
+        node._next_leaf = newLeaf
 
-                child_index: int = parent._children.index(node)
-                parent._children.insert(child_index + 1, newLeaf)
-                parent._keys.insert(child_index, newSeperator)
-                newLeaf._parent = parent
+        newSeperator: int = newLeaf._keys[0]
 
-                if len(parent._keys) > self._maxKeys:
-                    self._split(parent)
+        if node._parent is not None:
+            parent: _InternalNode = node._parent
+
+            child_index: int = parent._children.index(node)
+            parent._children.insert(child_index + 1, newLeaf)
+            parent._keys.insert(child_index, newSeperator)
+            newLeaf._parent = parent
+
+            if len(parent._keys) > self._maxKeys:
+                self._split(parent)
 
             else:
+                # if the parent of an leafnote is None it is guaranteed that the leafnote lies at root.
                 internalNode: _InternalNode = _InternalNode()
                 internalNode._keys.append(newSeperator)
                 internalNode._children.append(node)
@@ -176,7 +188,51 @@ class bPlusTree:
                 node._parent = internalNode
                 self._root = internalNode
 
-        if isinstance(node, _InternalNode):
-            return
+    def _split_internal(self, node: _InternalNode) -> None:
+        oldNode = node
+        newNode = _InternalNode()
 
-        return
+        keyLen: int = len(node._keys)
+        splitIndex: int = keyLen // 2
+
+        tempKey = oldNode._keys[splitIndex]
+        newNode._keys = oldNode._keys[splitIndex + 1 :]
+        oldNode._keys = oldNode._keys[:splitIndex]
+
+        newNode._children = oldNode._children[splitIndex + 1 :]
+        oldNode._children = oldNode._children[: splitIndex + 1]
+
+        # fix child parent pointers
+
+        for child in newNode._children:
+            child._parent = newNode
+
+        if oldNode._parent is not None:
+            parent: _InternalNode = oldNode._parent
+
+            child_index: int = parent._children.index(oldNode)
+            parent._children.insert(child_index + 1, newNode)
+            parent._keys.insert(child_index, tempKey)
+            newNode._parent = parent
+
+            if len(parent._keys) > self._maxKeys:
+                self._split(parent)
+        else:
+            internalNode: _InternalNode = _InternalNode()
+            internalNode._keys.append(tempKey)
+
+            internalNode._children.append(oldNode)
+            internalNode._children.append(newNode)
+
+            newNode._parent = internalNode
+            oldNode._parent = internalNode
+
+            self._root = internalNode
+
+    def _split(self, node: _Node) -> None:
+
+        if isinstance(node, _LeafNode):
+            self._split_leaf(node)
+
+        if isinstance(node, _InternalNode):
+            self._split_internal(node)
