@@ -131,7 +131,21 @@ class bPlusTree:
         value : bytes | None
             returns bytes if the key is in the tree otherwise this function returns None
         """
-        return
+        value: bytes | None = None
+        if self._root is None:
+            return value
+
+        node: _InternalNode | _LeafNode | _Node = self._root
+        while isinstance(node, _InternalNode):
+            nodeIndex: int = self._find_position(node._keys, key)
+            node = node._children[nodeIndex]
+
+        # node should always be a _LeafNode this might be to defensive
+        if isinstance(node, _LeafNode) and key in node._keys:
+            keyIndex: int = node._keys.index(key)
+            value = node._values[keyIndex]
+
+        return value
 
     def delete(self, key: int) -> bool:
         """Delete algorithm deletes key value pair."""
@@ -145,9 +159,6 @@ class bPlusTree:
         key_index = node._keys.index(key)
         node._values.insert(key_index, value)
         return node
-
-    def _createInternal(self, key: int) -> None:
-        return
 
     def _isKeyInLeaf(self, node: _LeafNode, key: int) -> bool:
         return key in node._keys
