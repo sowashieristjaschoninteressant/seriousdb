@@ -1,33 +1,34 @@
 """tests for the b+Tree implementation"""
 
-from seriousdb.b_plus_tree import _InternalNode, _LeafNode, bPlusTree
+from seriousdb.b_plus_tree import BPlusTree, _InternalNode, _LeafNode, _Node
 
 
-def assertTreeStructure(tree: bPlusTree) -> None:
-    node = tree._root
+def assertTreeStructure(tree: BPlusTree) -> None:
+    root = tree._root
+
+    if root is None:
+        return
     # okay here i will just make it a really long for loop so it cannot run infenetly if there is an error in the tree code
-    children = []
-    for i in range(0, 5000000, 1):
+    stack = [root]
+    while len(stack) > 0:
+        node: _Node = stack.pop()
+
+        assert len(node._keys) <= tree._maxKeys
+
+        if node is not tree._root:
+            assert node._parent is not None
+
         if isinstance(node, _LeafNode):
-            if node is not tree._root:
-                assert node._parent is not None
-            assert isinstance(node._parent, _LeafNode) is not True
-            assert len(node._keys) <= tree._maxKeys
-            assert len(node._values) == len(node._keys)
-            return
+            assert len(node._keys) == len(node._values)
+
         if isinstance(node, _InternalNode):
-            if node is not tree._root:
-                assert node._parent is not None
-            assert len(node._keys) <= tree._maxKeys
-            for child in node._children:
-                if child not in children:
-                    children.append(child)
-            node = children.pop()
+            assert len(node._children) == len(node._keys) + 1
+            stack.extend(node._children)
 
 
 def test_put_first_key():
     maxChildren: int = 3
-    tree: bPlusTree = bPlusTree(maxChildren)
+    tree: BPlusTree = BPlusTree(maxChildren)
 
     result = tree.put(1, b"2")
 
@@ -36,7 +37,7 @@ def test_put_first_key():
 
 def test_put_same_key():
     maxChildren: int = 3
-    tree: bPlusTree = bPlusTree(maxChildren)
+    tree: BPlusTree = BPlusTree(maxChildren)
 
     tree.put(1, b"2")
     result: bool = tree.put(1, b"2")
@@ -46,7 +47,7 @@ def test_put_same_key():
 
 def test_force_split():
     maxChildren: int = 3
-    tree: bPlusTree = bPlusTree(maxChildren)
+    tree: BPlusTree = BPlusTree(maxChildren)
     tree.put(1, b"AA")
     tree.put(2, b"AA")
     tree.put(3, b"AA")
@@ -58,7 +59,7 @@ def test_force_split():
 
 def test_stress_put():
     maxChildren: int = 3
-    tree: bPlusTree = bPlusTree(maxChildren)
+    tree: BPlusTree = BPlusTree(maxChildren)
     for i in range(0, 100000, 1):
         tree.put(i, b"bbb")
 
@@ -67,7 +68,7 @@ def test_stress_put():
 
 def test_get_success():
     maxChildren: int = 3
-    tree: bPlusTree = bPlusTree(maxChildren)
+    tree: BPlusTree = BPlusTree(maxChildren)
 
     tree.put(1, b"AA")
     value = tree.get(1)
@@ -77,7 +78,7 @@ def test_get_success():
 
 def test_get_empyTree():
     maxChildren: int = 3
-    tree: bPlusTree = bPlusTree(maxChildren)
+    tree: BPlusTree = BPlusTree(maxChildren)
     # retrive
     value = tree.get(1)
     assert value == None
@@ -85,7 +86,7 @@ def test_get_empyTree():
 
 def test_get_KeyNotInTree():
     maxChildren: int = 3
-    tree: bPlusTree = bPlusTree(maxChildren)
+    tree: BPlusTree = BPlusTree(maxChildren)
 
     tree.put(2, b"AA")
     tree.put(3, b"BB")

@@ -40,7 +40,7 @@ class _InternalNode(_Node):
         self._children = []
 
 
-class bPlusTree:
+class BPlusTree:
     """a Btree like Datastructure to retrieve and put data in O(log n) time.
 
     the public functions will firstly be get() put() delete() range()
@@ -60,16 +60,24 @@ class bPlusTree:
         The maximum number of Keys a _Node can hold derrived from the maximum number of children (m -1)
     _root : _Node or None
         the root Node of the tree the first will be a leafNode and after enough insertions mostly an internal Node
+
+    Raises
+    ------
+    ValueError if the maxchildren parameter is below 3
     """
 
     _maxChildren: int = 0
     _maxKeys: int = 0
     _root: _LeafNode | _InternalNode | None
+    _size: int = 0
 
     def __init__(self, maxChildren: int) -> None:
+        if maxChildren < 3:
+            raise ValueError("maxChildren must be at least 3")
         self._maxChildren = maxChildren
         self._maxKeys = self._maxChildren - 1
         self._root = None
+        self._size = 0
 
     def put(self, key: int, value: bytes) -> bool:
         """Put an key value pair into the tree.
@@ -92,7 +100,7 @@ class bPlusTree:
                 value was replaced.
         """
         is_new_key = True
-
+        self._size += 1
         if self._root is None:
             self._root = self._createLeaf(key, value)
             return is_new_key
@@ -147,6 +155,16 @@ class bPlusTree:
 
         return value
 
+    def size(self) -> int:
+        """Return the current keyvaluePairs in the tree.
+
+        Returns
+        -------
+        value : int
+            returns the number of keyvalue pairs in the tree
+        """
+        return self._size
+
     def delete(self, key: int) -> bool:
         """Delete algorithm deletes key value pair."""
         return True
@@ -159,6 +177,14 @@ class bPlusTree:
         key_index = node._keys.index(key)
         node._values.insert(key_index, value)
         return node
+
+    def _createInternal(self, key, child1, child2) -> _InternalNode:
+        internalNode: _InternalNode = _InternalNode()
+        internalNode._keys.append(key)
+        internalNode._children.append(child1)
+        internalNode._children.append(child2)
+
+        return internalNode
 
     def _isKeyInLeaf(self, node: _LeafNode, key: int) -> bool:
         return key in node._keys
@@ -189,10 +215,9 @@ class bPlusTree:
 
         if node._parent is None:
             # if the parent of an leafnote is None it is guaranteed that the leafnote lies at root.
-            internalNode: _InternalNode = _InternalNode()
-            internalNode._keys.append(newSeperator)
-            internalNode._children.append(node)
-            internalNode._children.append(newLeaf)
+            internalNode: _InternalNode = self._createInternal(
+                newSeperator, node, newLeaf
+            )
 
             newLeaf._parent = internalNode
             node._parent = internalNode
@@ -225,15 +250,12 @@ class bPlusTree:
             child._parent = newNode
 
         if oldNode._parent is None:
-            internalNode: _InternalNode = _InternalNode()
-            internalNode._keys.append(tempKey)
-
-            internalNode._children.append(oldNode)
-            internalNode._children.append(newNode)
+            internalNode: _InternalNode = self._createInternal(
+                tempKey, oldNode, newNode
+            )
 
             newNode._parent = internalNode
             oldNode._parent = internalNode
-
             self._root = internalNode
         else:
             parent: _InternalNode = oldNode._parent
